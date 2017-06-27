@@ -19,4 +19,6 @@ public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule {
   public String getName() {
     return "ReactNativeAwsPinpoint";
   }
+
+
 }
