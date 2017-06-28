@@ -97,7 +97,7 @@ public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule {
      * Record a custom event
      */
     @ReactMethod
-    public void recordEvent(
+    public void recordCustomEvent(
             String eventType,
             ReadableMap attributes,
             ReadableMap metrics,
