@@ -71,6 +71,15 @@ public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule {
         }
     }
 
+    @ReactMethod
+    public void submitEvents(Promise promise) {
+        if (mPinpointManager != null) {
+            mPinpointManager.getAnalyticsClient().submitEvents();
+            promise.resolve(true);
+        } else {
+            promise.reject(new Exception("ReactNativeAwsPinpointModule should be initialized first"));
+        }
+    }
 
     /**
      * Record a montetization event
