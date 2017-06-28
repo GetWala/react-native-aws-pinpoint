@@ -1,21 +1,17 @@
 
 package com.getwala;
 
-
 import com.amazonaws.auth.CognitoCachingCredentialsProvider;
 import com.amazonaws.mobileconnectors.pinpoint.PinpointConfiguration;
 import com.amazonaws.mobileconnectors.pinpoint.PinpointManager;
 import com.amazonaws.mobileconnectors.pinpoint.analytics.AnalyticsEvent;
 import com.amazonaws.mobileconnectors.pinpoint.analytics.monetization.GooglePlayMonetizationEventBuilder;
 import com.amazonaws.regions.Regions;
-import com.facebook.react.bridge.Arguments;
-import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.ReadableMapKeySetIterator;
-import com.facebook.react.bridge.WritableMap;
 
 public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule {
 
@@ -44,29 +40,29 @@ public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule {
     /**
      * Record a monetization event
      *
-     * @param {String}  COST
-     * @param {String}  PRODUCT_ID
-     * @param {Promise} Promise
+     * @param {String}  currency
+     * @param {Double}  itemPrice
+     * @param {String}  productId
+     * @param {String}  transactionId
+     * @param {Promise} promise
      */
     @ReactMethod
     public void generateMonetizationEvent(
-            String cost,
+            String currency,
+            Double itemPrice,
             String productId,
-            Promise promise
+            String transactionId
     ) {
 
         final AnalyticsEvent event = GooglePlayMonetizationEventBuilder.create(mPinpointManager.getAnalyticsClient())
-                .withFormattedItemPrice(cost)
+                .withCurrency(currency)
+                .withItemPrice(itemPrice)
                 .withQuantity(1.0)
-                .withTransactionId(productId)
+                .withTransactionId(transactionId)
                 .withProductId(productId).build();
 
         mPinpointManager.getAnalyticsClient().recordEvent(event);
         mPinpointManager.getAnalyticsClient().submitEvents();
-
-        WritableMap map = Arguments.createMap();
-        map.putString("result", "ok");
-        promise.resolve(map);
     }
 
     /**
@@ -84,16 +80,20 @@ public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule {
     ) {
         AnalyticsEvent event = mPinpointManager.getAnalyticsClient().createEvent(eventType);
 
-        ReadableMapKeySetIterator attributeIterator = attributes.keySetIterator();
-        while(attributeIterator.hasNextKey()) {
-            String key = attributeIterator.nextKey();
-            event = event.withAttribute(key, attributes.getString(key));
+        if (attributes != null) {
+            ReadableMapKeySetIterator attributeIterator = attributes.keySetIterator();
+            while (attributeIterator.hasNextKey()) {
+                String key = attributeIterator.nextKey();
+                event = event.withAttribute(key, attributes.getString(key));
+            }
         }
 
-        ReadableMapKeySetIterator metricsIterator = metrics.keySetIterator();
-        while(metricsIterator.hasNextKey()) {
-            String key = metricsIterator.nextKey();
-            event = event.withMetric(key, metrics.getDouble(key));
+        if (metrics != null) {
+            ReadableMapKeySetIterator metricsIterator = metrics.keySetIterator();
+            while (metricsIterator.hasNextKey()) {
+                String key = metricsIterator.nextKey();
+                event = event.withMetric(key, metrics.getDouble(key));
+            }
         }
 
         mPinpointManager.getAnalyticsClient().recordEvent(event);

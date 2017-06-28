@@ -32,7 +32,7 @@ repositories {
 
 dependencies {
     compile 'com.facebook.react:react-native:+'
-    compile 'com.amazonaws:aws-android-sdk-core:2.3.9'
-    compile 'com.amazonaws:aws-android-sdk-pinpoint:2.3.9'
+    compile 'com.amazonaws:aws-android-sdk-core:2.4.4'
+    compile 'com.amazonaws:aws-android-sdk-pinpoint:2.4.4'
 }
   
