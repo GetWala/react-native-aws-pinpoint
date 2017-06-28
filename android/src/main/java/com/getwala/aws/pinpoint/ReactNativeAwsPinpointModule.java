@@ -1,5 +1,5 @@
 
-package com.getwala;
+package com.getwala.aws.pinpoint;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.auth.CognitoCachingCredentialsProvider;
