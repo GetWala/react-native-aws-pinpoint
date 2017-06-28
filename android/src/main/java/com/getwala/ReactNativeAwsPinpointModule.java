@@ -1,12 +1,14 @@
 
 package com.getwala;
 
+import com.amazonaws.AmazonClientException;
 import com.amazonaws.auth.CognitoCachingCredentialsProvider;
 import com.amazonaws.mobileconnectors.pinpoint.PinpointConfiguration;
 import com.amazonaws.mobileconnectors.pinpoint.PinpointManager;
 import com.amazonaws.mobileconnectors.pinpoint.analytics.AnalyticsEvent;
 import com.amazonaws.mobileconnectors.pinpoint.analytics.monetization.GooglePlayMonetizationEventBuilder;
 import com.amazonaws.regions.Regions;
+import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
@@ -16,87 +18,114 @@ import com.facebook.react.bridge.ReadableMapKeySetIterator;
 public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule {
 
     private final ReactApplicationContext reactContext;
-    private final PinpointManager mPinpointManager;
+    private static PinpointManager mPinpointManager;
 
     public ReactNativeAwsPinpointModule(ReactApplicationContext reactContext) {
         super(reactContext);
         this.reactContext = reactContext;
-
-        CognitoCachingCredentialsProvider cognitoCachingCredentialsProvider =
-                new CognitoCachingCredentialsProvider(reactContext.getApplicationContext(), "IDENTITY_POOL_ID", Regions.US_EAST_1);
-
-        PinpointConfiguration config =
-                new PinpointConfiguration(reactContext.getApplicationContext(), "APP_ID", Regions.US_EAST_1, cognitoCachingCredentialsProvider);
-
-        mPinpointManager = new PinpointManager(config); // can take a few seconds
     }
+
 
     @Override
     public String getName() {
         return "ReactNativeAwsPinpoint";
     }
 
+    @ReactMethod
+    public void initialize(String appId, String identityPoolId, String region, Promise promise) {
+        try {
+            Regions regionValue = Regions.fromName(region);
+
+            CognitoCachingCredentialsProvider cognitoCachingCredentialsProvider =
+                    new CognitoCachingCredentialsProvider(reactContext.getApplicationContext(), identityPoolId, regionValue);
+
+            PinpointConfiguration config =
+                    new PinpointConfiguration(reactContext.getApplicationContext(), appId, regionValue, cognitoCachingCredentialsProvider);
+
+            mPinpointManager = new PinpointManager(config); // can take a few seconds
+
+            promise.resolve(true);
+        } catch (AmazonClientException ace) {
+            promise.reject(ace);
+        }
+    }
+
+    @ReactMethod
+    public void pauseSession(Promise promise) {
+        if (mPinpointManager != null) {
+            mPinpointManager.getSessionClient().pauseSession();
+            mPinpointManager.getAnalyticsClient().submitEvents();
+            promise.resolve(true);
+        } else {
+            promise.reject(new Exception("ReactNativeAwsPinpointModule should be initialized first"));
+        }
+    }
+
+    @ReactMethod
+    public void resumeSession(Promise promise) {
+        if (mPinpointManager != null) {
+            mPinpointManager.getSessionClient().resumeSession();
+            promise.resolve(true);
+        } else {
+            promise.reject(new Exception("ReactNativeAwsPinpointModule should be initialized first"));
+        }
+    }
+
 
     /**
-     * Record a monetization event
-     *
-     * @param {String}  currency
-     * @param {Double}  itemPrice
-     * @param {String}  productId
-     * @param {String}  transactionId
-     * @param {Promise} promise
+     * Record a montetization event
      */
     @ReactMethod
-    public void generateMonetizationEvent(
-            String currency,
-            Double itemPrice,
-            String productId,
-            String transactionId
-    ) {
-
-        final AnalyticsEvent event = GooglePlayMonetizationEventBuilder.create(mPinpointManager.getAnalyticsClient())
-                .withCurrency(currency)
-                .withItemPrice(itemPrice)
-                .withQuantity(1.0)
-                .withTransactionId(transactionId)
-                .withProductId(productId).build();
-
-        mPinpointManager.getAnalyticsClient().recordEvent(event);
-        mPinpointManager.getAnalyticsClient().submitEvents();
+    public void recordMonetizationEvent(ReadableMap event, Promise promise) {
+        if (mPinpointManager != null) {
+            final AnalyticsEvent analyticsEvent =
+                    GooglePlayMonetizationEventBuilder.create(mPinpointManager.getAnalyticsClient())
+                            .withCurrency(event.getString("currency"))
+                            .withItemPrice(event.getDouble("itemPrice"))
+                            .withProductId(event.getString("productId"))
+                            .withQuantity(event.getDouble("quantity"))
+                            .withTransactionId(event.getString("transactionId"))
+                            .build();
+            mPinpointManager.getAnalyticsClient().recordEvent(analyticsEvent);
+            promise.resolve(true);
+        } else {
+            promise.reject(new Exception("ReactNativeAwsPinpointModule should be initialized first"));
+        }
     }
 
     /**
      * Record a custom event
-     *
-     * @param {String}      eventType
-     * @param {ReadableMap} attributes
-     * @param {ReadableMap} metrics
      */
     @ReactMethod
     public void recordEvent(
-        String eventType,
-        ReadableMap attributes,
-        ReadableMap metrics
+            String eventType,
+            ReadableMap attributes,
+            ReadableMap metrics,
+            Promise promise
     ) {
-        AnalyticsEvent event = mPinpointManager.getAnalyticsClient().createEvent(eventType);
+        if (mPinpointManager != null) {
+            AnalyticsEvent event = mPinpointManager.getAnalyticsClient().createEvent(eventType);
 
-        if (attributes != null) {
-            ReadableMapKeySetIterator attributeIterator = attributes.keySetIterator();
-            while (attributeIterator.hasNextKey()) {
-                String key = attributeIterator.nextKey();
-                event = event.withAttribute(key, attributes.getString(key));
+            if (attributes != null) {
+                ReadableMapKeySetIterator attributeIterator = attributes.keySetIterator();
+                while (attributeIterator.hasNextKey()) {
+                    String key = attributeIterator.nextKey();
+                    event = event.withAttribute(key, attributes.getString(key));
+                }
             }
-        }
 
-        if (metrics != null) {
-            ReadableMapKeySetIterator metricsIterator = metrics.keySetIterator();
-            while (metricsIterator.hasNextKey()) {
-                String key = metricsIterator.nextKey();
-                event = event.withMetric(key, metrics.getDouble(key));
+            if (metrics != null) {
+                ReadableMapKeySetIterator metricsIterator = metrics.keySetIterator();
+                while (metricsIterator.hasNextKey()) {
+                    String key = metricsIterator.nextKey();
+                    event = event.withMetric(key, metrics.getDouble(key));
+                }
             }
-        }
 
-        mPinpointManager.getAnalyticsClient().recordEvent(event);
-        mPinpointManager.getAnalyticsClient().submitEvents();
+            mPinpointManager.getAnalyticsClient().recordEvent(event);
+            promise.resolve(true);
+        } else {
+            promise.reject(new Exception("ReactNativeAwsPinpointModule should be initialized first"));
+        }
     }
 }
