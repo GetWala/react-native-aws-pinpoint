@@ -8,6 +8,7 @@ import com.amazonaws.mobileconnectors.pinpoint.PinpointManager;
 import com.amazonaws.mobileconnectors.pinpoint.analytics.AnalyticsEvent;
 import com.amazonaws.mobileconnectors.pinpoint.analytics.monetization.CustomMonetizationEventBuilder;
 import com.amazonaws.regions.Regions;
+import com.facebook.react.bridge.LifecycleEventListener;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
@@ -15,7 +16,7 @@ import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.ReadableMapKeySetIterator;
 
-public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule {
+public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule implements LifecycleEventListener {
 
     private final ReactApplicationContext reactContext;
     private static PinpointManager mPinpointManager;
@@ -46,6 +47,7 @@ public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule {
 
             mPinpointManager = new PinpointManager(config); // can take a few seconds
 
+
             promise.resolve(true);
         } catch (AmazonClientException ace) {
             promise.reject(ace);
@@ -55,7 +57,7 @@ public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void pauseSession(Promise promise) {
         if (mPinpointManager != null) {
-            mPinpointManager.getSessionClient().pauseSession();
+            mPinpointManager.getSessionClient().stopSession();
             mPinpointManager.getAnalyticsClient().submitEvents();
             promise.resolve(true);
         } else {
@@ -66,7 +68,7 @@ public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void resumeSession(Promise promise) {
         if (mPinpointManager != null) {
-            mPinpointManager.getSessionClient().resumeSession();
+            mPinpointManager.getSessionClient().startSession();
             promise.resolve(true);
         } else {
             promise.reject(new Exception("ReactNativeAwsPinpointModule should be initialized first"));
@@ -182,5 +184,25 @@ public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule {
         } else {
             promise.reject(new Exception("ReactNativeAwsPinpointModule should be initialized first"));
         }
+    }
+
+    @Override
+    public void onHostResume() {
+        if (mPinpointManager != null) {
+            mPinpointManager.getSessionClient().startSession();
+        }
+    }
+
+    @Override
+    public void onHostPause() {
+        if (mPinpointManager != null) {
+            mPinpointManager.getSessionClient().stopSession();
+            mPinpointManager.getAnalyticsClient().submitEvents();
+        }
+    }
+
+    @Override
+    public void onHostDestroy() {
+
     }
 }
