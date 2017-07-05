@@ -1,8 +1,11 @@
 
 package com.getwala.aws.pinpoint;
 
+import android.util.Log;
+
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.auth.CognitoCachingCredentialsProvider;
+import com.amazonaws.mobileconnectors.pinpoint.PinpointCallback;
 import com.amazonaws.mobileconnectors.pinpoint.PinpointConfiguration;
 import com.amazonaws.mobileconnectors.pinpoint.PinpointManager;
 import com.amazonaws.mobileconnectors.pinpoint.analytics.AnalyticsEvent;
@@ -18,14 +21,27 @@ import com.facebook.react.bridge.ReadableMapKeySetIterator;
 
 public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule implements LifecycleEventListener {
 
+    private final String appId;
+    private final String identityPoolId;
+    private final String region;
+
     private final ReactApplicationContext reactContext;
     private static PinpointManager mPinpointManager;
 
+    private boolean sessionIsStarted = false;
+    private boolean initializing = false;
+
     private String[] requiredAttributesForMonetization = {"currency", "itemPrice", "productId", "quantity"};
 
-    public ReactNativeAwsPinpointModule(ReactApplicationContext reactContext) {
+    public ReactNativeAwsPinpointModule(ReactApplicationContext reactContext, String appId, String identityPoolId, String region) {
         super(reactContext);
         this.reactContext = reactContext;
+
+        this.appId = appId;
+        this.identityPoolId = identityPoolId;
+        this.region = region;
+
+        reactContext.addLifecycleEventListener(this);
     }
 
 
@@ -34,30 +50,30 @@ public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule imp
         return "ReactNativeAwsPinpoint";
     }
 
-    @ReactMethod
-    public void initialize(String appId, String identityPoolId, String region, Promise promise) {
+
+    private void initializeWithSettings(PinpointCallback callback) {
         try {
+            initializing = true;
             Regions regionValue = Regions.fromName(region);
 
             CognitoCachingCredentialsProvider cognitoCachingCredentialsProvider =
                     new CognitoCachingCredentialsProvider(reactContext.getApplicationContext(), identityPoolId, regionValue);
 
             PinpointConfiguration config =
-                    new PinpointConfiguration(reactContext.getApplicationContext(), appId, regionValue, cognitoCachingCredentialsProvider);
+                    new PinpointConfiguration(reactContext.getApplicationContext(), appId, regionValue, cognitoCachingCredentialsProvider)
+                    .withInitCompletionCallback(callback);
 
             mPinpointManager = new PinpointManager(config); // can take a few seconds
-
-
-            promise.resolve(true);
         } catch (AmazonClientException ace) {
-            promise.reject(ace);
+            Log.e("RNAwsPinpointModule", "Something went wrong with initializing the module." + ace.toString());
+            initializing = false;
         }
     }
 
     @ReactMethod
     public void pauseSession(Promise promise) {
         if (mPinpointManager != null) {
-            mPinpointManager.getSessionClient().stopSession();
+            mPinpointManager.getSessionClient().pauseSession();
             mPinpointManager.getAnalyticsClient().submitEvents();
             promise.resolve(true);
         } else {
@@ -68,22 +84,22 @@ public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule imp
     @ReactMethod
     public void resumeSession(Promise promise) {
         if (mPinpointManager != null) {
-            mPinpointManager.getSessionClient().startSession();
+            mPinpointManager.getSessionClient().resumeSession();
             promise.resolve(true);
         } else {
             promise.reject(new Exception("ReactNativeAwsPinpointModule should be initialized first"));
         }
     }
 
-    @ReactMethod
-    public void submitEvents(Promise promise) {
-        if (mPinpointManager != null) {
-            mPinpointManager.getAnalyticsClient().submitEvents();
-            promise.resolve(true);
-        } else {
-            promise.reject(new Exception("ReactNativeAwsPinpointModule should be initialized first"));
-        }
-    }
+//    @ReactMethod
+//    public void submitEvents(Promise promise) {
+//        if (mPinpointManager != null) {
+//            mPinpointManager.getAnalyticsClient().submitEvents();
+//            promise.resolve(true);
+//        } else {
+//            promise.reject(new Exception("ReactNativeAwsPinpointModule should be initialized first"));
+//        }
+//    }
 
     /**
      * Record a montetization event, immediately submits events
@@ -180,29 +196,51 @@ public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule imp
             }
 
             mPinpointManager.getAnalyticsClient().recordEvent(event);
+            mPinpointManager.getAnalyticsClient().submitEvents();
             promise.resolve(true);
         } else {
             promise.reject(new Exception("ReactNativeAwsPinpointModule should be initialized first"));
         }
     }
 
-    @Override
-    public void onHostResume() {
-        if (mPinpointManager != null) {
+    private void startSession(){
+        if (mPinpointManager == null) {
+            if (initializing) return;
+            this.initializeWithSettings(new PinpointCallback<PinpointManager>() {
+                @Override
+                public void onComplete(PinpointManager manager) {
+                    manager.getSessionClient().startSession();
+                    sessionIsStarted = true;
+                }
+            });
+        } else {
+            if (sessionIsStarted) return;
             mPinpointManager.getSessionClient().startSession();
+            mPinpointManager.getAnalyticsClient().submitEvents();
+            sessionIsStarted = true;
         }
     }
 
     @Override
+    public void onHostResume() {
+       startSession();
+    }
+
+    @Override
     public void onHostPause() {
-        if (mPinpointManager != null) {
+        if (mPinpointManager != null && sessionIsStarted) {
             mPinpointManager.getSessionClient().stopSession();
             mPinpointManager.getAnalyticsClient().submitEvents();
+            sessionIsStarted = false;
         }
     }
 
     @Override
     public void onHostDestroy() {
-
+        if (mPinpointManager != null && sessionIsStarted) {
+            mPinpointManager.getSessionClient().stopSession();
+            mPinpointManager.getAnalyticsClient().submitEvents();
+            sessionIsStarted = false;
+        }
     }
 }
