@@ -29,7 +29,6 @@ public class ReactNativeAwsPinpointPackage implements ReactPackage {
       return Arrays.<NativeModule>asList(new ReactNativeAwsPinpointModule(reactContext, appId, identityPoolId, region));
     }
 
-    @Override
     public List<Class<? extends JavaScriptModule>> createJSModules() {
       return Collections.emptyList();
     }
