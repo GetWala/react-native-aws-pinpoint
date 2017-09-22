@@ -18,6 +18,7 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.ReadableMapKeySetIterator;
+import com.facebook.react.bridge.UnexpectedNativeTypeException;
 
 public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule implements LifecycleEventListener {
 
@@ -91,15 +92,15 @@ public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule imp
         }
     }
 
-//    @ReactMethod
-//    public void submitEvents(Promise promise) {
-//        if (mPinpointManager != null) {
-//            mPinpointManager.getAnalyticsClient().submitEvents();
-//            promise.resolve(true);
-//        } else {
-//            promise.reject(new Exception("ReactNativeAwsPinpointModule should be initialized first"));
-//        }
-//    }
+    @ReactMethod
+    public void submitEvents(Promise promise) {
+        if (mPinpointManager != null) {
+            mPinpointManager.getAnalyticsClient().submitEvents();
+            promise.resolve(true);
+        } else {
+            promise.reject(new Exception("ReactNativeAwsPinpointModule should be initialized first"));
+        }
+    }
 
     /**
      * Record a montetization event, immediately submits events
@@ -140,28 +141,48 @@ public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule imp
 
                 AnalyticsEvent analyticsEvent = builder.build();
 
-                // add attributes and metrics
-                if (attributes != null) {
-                    ReadableMapKeySetIterator attributeIterator = attributes.keySetIterator();
-                    while (attributeIterator.hasNextKey()) {
-                        String key = attributeIterator.nextKey();
-                        analyticsEvent = analyticsEvent.withAttribute(key, attributes.getString(key));
-                    }
-                }
-
-                if (metrics != null) {
-                    ReadableMapKeySetIterator metricsIterator = metrics.keySetIterator();
-                    while (metricsIterator.hasNextKey()) {
-                        String key = metricsIterator.nextKey();
-                        analyticsEvent = analyticsEvent.withMetric(key, metrics.getDouble(key));
-                    }
-                }
+                setAttributes(analyticsEvent, attributes);
+                setMetrics(analyticsEvent, metrics);
 
                 mPinpointManager.getAnalyticsClient().recordEvent(analyticsEvent);
                 promise.resolve(true);
             }
         } else {
             promise.reject(new Exception("ReactNativeAwsPinpointModule should be initialized first"));
+        }
+    }
+
+    private void setMetrics(AnalyticsEvent analyticsEvent, ReadableMap metrics) {
+        if (metrics != null && analyticsEvent != null) {
+            ReadableMapKeySetIterator metricsIterator = metrics.keySetIterator();
+            while (metricsIterator.hasNextKey()) {
+                String key = metricsIterator.nextKey();
+                Double value = 0d;
+                try {
+                    value = metrics.getDouble(key);
+                } catch (UnexpectedNativeTypeException ex) {
+                    Log.d("RNAwsPinpointModule", "UnexpectedNativeTypeException when attempting to getDouble with key: " + key);
+                    continue;
+                }
+                analyticsEvent = analyticsEvent.withMetric(key, value);
+            }
+        }
+    }
+
+    private void setAttributes(AnalyticsEvent analyticsEvent, ReadableMap attributes) {
+        if (attributes != null && analyticsEvent != null) {
+            ReadableMapKeySetIterator attributeIterator = attributes.keySetIterator();
+            while (attributeIterator.hasNextKey()) {
+                String key = attributeIterator.nextKey();
+                String value = null;
+                try {
+                    value = attributes.getString(key);
+                } catch (UnexpectedNativeTypeException ex) {
+                    Log.d("RNAwsPinpointModule", "UnexpectedNativeTypeException when attempting to getString with key: " + key);
+                    continue;
+                }
+                analyticsEvent = analyticsEvent.withAttribute(key, value);
+            }
         }
     }
 
@@ -178,21 +199,8 @@ public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule imp
         if (mPinpointManager != null) {
             AnalyticsEvent event = mPinpointManager.getAnalyticsClient().createEvent(eventType);
 
-            if (attributes != null) {
-                ReadableMapKeySetIterator attributeIterator = attributes.keySetIterator();
-                while (attributeIterator.hasNextKey()) {
-                    String key = attributeIterator.nextKey();
-                    event = event.withAttribute(key, attributes.getString(key));
-                }
-            }
-
-            if (metrics != null) {
-                ReadableMapKeySetIterator metricsIterator = metrics.keySetIterator();
-                while (metricsIterator.hasNextKey()) {
-                    String key = metricsIterator.nextKey();
-                    event = event.withMetric(key, metrics.getDouble(key));
-                }
-            }
+            setAttributes(event, attributes);
+            setMetrics(event, metrics);
 
             mPinpointManager.getAnalyticsClient().recordEvent(event);
             promise.resolve(true);
