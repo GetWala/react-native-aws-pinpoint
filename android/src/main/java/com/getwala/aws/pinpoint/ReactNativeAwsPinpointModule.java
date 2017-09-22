@@ -158,7 +158,6 @@ public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule imp
                 }
 
                 mPinpointManager.getAnalyticsClient().recordEvent(analyticsEvent);
-                mPinpointManager.getAnalyticsClient().submitEvents();
                 promise.resolve(true);
             }
         } else {
@@ -196,7 +195,6 @@ public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule imp
             }
 
             mPinpointManager.getAnalyticsClient().recordEvent(event);
-            mPinpointManager.getAnalyticsClient().submitEvents();
             promise.resolve(true);
         } else {
             promise.reject(new Exception("ReactNativeAwsPinpointModule should be initialized first"));
@@ -216,7 +214,6 @@ public class ReactNativeAwsPinpointModule extends ReactContextBaseJavaModule imp
         } else {
             if (sessionIsStarted) return;
             mPinpointManager.getSessionClient().startSession();
-            mPinpointManager.getAnalyticsClient().submitEvents();
             sessionIsStarted = true;
         }
     }
